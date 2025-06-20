@@ -685,38 +685,36 @@ def parse_fuzzy_numeric_range(series: pl.Series, unit_multiplier: int = 1) -> Di
 
 def clean_common_fields(df: pl.DataFrame) -> pl.DataFrame:
     """
-    通用字段清洗函数 - 焦土重构版
+    通用字段清洗函数 - 新版：保留原始数据，添加_filter辅助列
     
     核心功能：
-    1. 佣金比例百分比转换
-    2. 模糊数值范围处理
-    3. 精确数值类型转换
-    
-    重要：只返回处理后的数据，不包含原始列
+    1. 保留所有原始列
+    2. 为范围值创建_filter辅助列（只存储下限值）
+    3. 佣金比例创建_filter列（转换为小数）
     
     Args:
         df: 原始DataFrame
         
     Returns:
-        pl.DataFrame: 只包含清洗后数据的DataFrame
+        pl.DataFrame: 包含原始数据和_filter辅助列的DataFrame
     """
-    logger.info("开始通用字段清洗 - 焦土重构版")
+    logger.info("开始通用字段清洗 - 保留原始数据版")
     
-    # 创建一个新的列收集器，只收集处理后的列
-    processed_columns = []
+    # 复制原始DataFrame
+    cleaned_df = df.clone()
     
-    # 1. 处理佣金比例
+    # 1. 处理佣金比例 - 创建_filter列
     if '佣金比例' in df.columns:
-        processed_columns.append(
+        cleaned_df = cleaned_df.with_columns([
             pl.col('佣金比例')
             .str.replace('%', '')
             .str.replace('百分比', '')
             .cast(pl.Float64, strict=False)
             .truediv(100)
-            .alias('佣金比例')
-        )
+            .alias('佣金比例_filter')
+        ])
     
-    # 2. 处理模糊数值范围字段
+    # 2. 处理模糊数值范围字段 - 只创建_filter列（存储下限值）
     range_fields = ['近30天销量', '周销量', '近1年销量', '销售额', '近30天销售额', '近1年销售额', 
                    '昨日销量', '近90天销量', '同期销量', '周带货达人', '关联达人']
     
@@ -728,37 +726,35 @@ def clean_common_fields(df: pl.DataFrame) -> pl.DataFrame:
                 # 确保数据为字符串类型后再解析
                 field_series = df[field].cast(pl.Utf8)
                 
-                # 解析范围
+                # 解析范围，只获取最小值（下限）
                 range_data = parse_fuzzy_numeric_range(field_series)
                 
-                # 只添加处理后的新列到收集器
-                processed_columns.extend([
-                    range_data['min'].alias(f'{field}_min'),
-                    range_data['max'].alias(f'{field}_max'),
-                    range_data['avg'].alias(f'{field}_avg')
+                # 创建_filter列，只存储下限值
+                cleaned_df = cleaned_df.with_columns([
+                    range_data['min'].alias(f'{field}_filter')
                 ])
                 
-                logger.info(f"成功处理模糊数值字段: {field}")
+                logger.info(f"成功创建{field}_filter列")
                 
             except Exception as e:
                 logger.error(f"处理模糊数值字段 {field} 失败: {e}")
                 logger.warning(f"跳过字段 {field} 的范围解析")
                 continue
     
-    # 3. 处理精确数值字段
+    # 3. 处理精确数值字段 - 创建_filter列
     numeric_fields = ['直播销售额', '商品卡销售额']
     
     for field in numeric_fields:
         if field in df.columns:
-            processed_columns.append(
+            cleaned_df = cleaned_df.with_columns([
                 pl.col(field)
                 .str.replace('%', '')
                 .str.replace('，', '')
                 .cast(pl.Float64, strict=False)
-                .alias(field)
-            )
+                .alias(f'{field}_filter')
+            ])
     
-    # 4. 处理转化率范围
+    # 4. 处理转化率范围 - 创建_filter列
     rate_fields = ['转化率', '30天转化率']
     
     for field in rate_fields:
@@ -767,57 +763,25 @@ def clean_common_fields(df: pl.DataFrame) -> pl.DataFrame:
                 rate_series = df[field].cast(pl.Utf8)
                 rate_data = parse_fuzzy_numeric_range(rate_series)
                 
-                # 转化率需要除以100
-                processed_columns.extend([
-                    (rate_data['min'] / 100).alias(f'{field}_min'),
-                    (rate_data['max'] / 100).alias(f'{field}_max'),
-                    (rate_data['avg'] / 100).alias(f'{field}_avg')
+                # 转化率需要除以100，只存储下限值
+                cleaned_df = cleaned_df.with_columns([
+                    (rate_data['min'] / 100).alias(f'{field}_filter')
                 ])
                 
-                logger.info(f"成功处理转化率字段: {field}")
+                logger.info(f"成功创建{field}_filter列")
             except Exception as e:
                 logger.error(f"处理转化率字段 {field} 失败: {e}")
     
-    # 5. 处理需要保留的原始文本字段
-    text_fields = ['商品', '商品链接', '商品分类', '商品头图链接', '蝉妈妈商品链接', 
-                   '抖音商品链接', '小店', '品牌', '蝉妈妈链接']
-    
-    for field in text_fields:
-        if field in df.columns:
-            processed_columns.append(pl.col(field))
-    
-    # 6. 处理需要保留的原始数值字段（如排名）
-    keep_as_is_fields = ['排名']
-    
-    for field in keep_as_is_fields:
-        if field in df.columns:
-            processed_columns.append(
-                pl.col(field).cast(pl.Int64, strict=False).alias(field)
-            )
-    
-    # 7. 构建最终的DataFrame - 只包含处理后的列
-    if not processed_columns:
-        logger.error("没有找到任何可处理的列！")
-        return pl.DataFrame()  # 返回空DataFrame
-    
-    # 创建只包含处理后数据的新DataFrame
-    cleaned_df = df.select(processed_columns)
-    
     # 输出最终的列信息
     logger.info(f"最终DataFrame包含 {len(cleaned_df.columns)} 列")
-    logger.info(f"最终列名: {cleaned_df.columns}")
+    logger.info(f"其中原始列: {len(df.columns)} 列")
+    logger.info(f"新增_filter列: {len(cleaned_df.columns) - len(df.columns)} 列")
     
-    # 验证数据
-    logger.info(f"数据行数: {len(cleaned_df)}")
+    # 列出所有_filter列
+    filter_cols = [col for col in cleaned_df.columns if col.endswith('_filter')]
+    logger.info(f"_filter列: {filter_cols}")
     
-    # 显示数据类型分布
-    type_counts = {}
-    for col in cleaned_df.columns:
-        dtype = str(cleaned_df[col].dtype)
-        type_counts[dtype] = type_counts.get(dtype, 0) + 1
-    logger.info(f"数据类型分布: {type_counts}")
-    
-    logger.info("通用字段清洗完成 - 焦土重构版")
+    logger.info("通用字段清洗完成 - 保留原始数据版")
     return cleaned_df
 
 

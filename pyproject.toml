@@ -1,0 +1,109 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dy-ec-cleaner"
+version = "1.0.0"
+description = "🏗️ 数据炼金工坊 - 抖音电商数据清洗工具"
+readme = "README.md"
+authors = [
+    {name = "管道架构师", email = "pipeline-architect@datacleaner.ai"},
+    {name = "界面设计师", email = "interface-designer@datacleaner.ai"},
+    {name = "整合与部署工程师", email = "integration-engineer@datacleaner.ai"}
+]
+license = {text = "MIT"}
+requires-python = ">=3.9"
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Data Scientists",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Information Analysis",
+    "Topic :: Office/Business :: Financial :: Spreadsheet",
+]
+keywords = ["data-cleaning", "polars", "douyin", "e-commerce", "etl", "streamlit"]
+
+dependencies = [
+    "polars-lts-cpu>=1.31.0,<2.0.0",
+    "typer>=0.12.0,<1.0.0",
+    "rich>=13.0.0,<14.0.0",
+    "streamlit>=1.46.0,<2.0.0",
+    "plotly>=6.1.2,<7.0.0",
+    "pandas>=2.3.0,<3.0.0",
+    "pyyaml>=6.0.0,<7.0.0",
+    "loguru>=0.7.0,<1.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.4.0,<9.0.0",
+    "pytest-cov>=5.0.0,<6.0.0",
+    "pytest-mock>=3.12.0,<4.0.0",
+    "black>=24.0.0,<25.0.0",
+    "isort>=5.13.0,<6.0.0",
+    "flake8>=7.0.0,<8.0.0",
+    "mypy>=1.8.0,<2.0.0",
+]
+performance = [
+    "memory-profiler>=0.61.0",
+    "line-profiler>=4.1.0",
+]
+
+[project.urls]
+"Homepage" = "https://github.com/datacleaner/dy-ec-cleaner"
+"Bug Reports" = "https://github.com/datacleaner/dy-ec-cleaner/issues"
+"Source" = "https://github.com/datacleaner/dy-ec-cleaner"
+"Documentation" = "https://datacleaner.readthedocs.io/"
+
+[project.scripts]
+datacleaner = "app.cli.main:app"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["app*"]
+exclude = ["tests*", "venv*"]
+
+[tool.black]
+line-length = 88
+target-version = ['py39']
+include = '\.pyi?$'
+extend-ignore = ["E203"]
+
+[tool.isort]
+profile = "black"
+multi_line_output = 3
+line_length = 88
+
+[tool.pytest.ini_options]
+minversion = "6.0"
+addopts = "-ra -q --strict-markers"
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+
+[tool.coverage.run]
+source = ["app"]
+omit = ["*/tests/*", "*/venv/*"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+]
+
+[tool.mypy]
+python_version = "3.9"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+ignore_missing_imports = true

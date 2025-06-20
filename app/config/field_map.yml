@@ -1,0 +1,65 @@
+# 抖音电商数据字段映射配置
+# 中文列名 -> 英文标准名映射
+
+field_mapping:
+  # 基础商品信息
+  "商品标题": "product_title"
+  "商品链接": "product_url"
+  "商品价格": "price"
+  "商品现价": "current_price"
+  "商品原价": "original_price"
+  "销量": "sales_volume"
+  "库存": "inventory"
+  "商品ID": "product_id"
+  "店铺名称": "shop_name"
+  "店铺ID": "shop_id"
+  
+  # 时间相关字段
+  "上架时间": "listing_date"
+  "更新时间": "update_date"
+  "数据采集时间": "crawl_date"
+  "统计日期": "stats_date"
+  
+  # 营销信息
+  "优惠券": "coupon"
+  "折扣": "discount"
+  "促销活动": "promotion"
+  "满减": "full_reduction"
+  
+  # 商品属性
+  "品牌": "brand"
+  "类目": "category"
+  "标签": "tags"
+  "商品评分": "rating"
+  "评论数": "comment_count"
+  "好评率": "positive_rate"
+  
+  # 达人/主播信息
+  "达人昵称": "influencer_name"
+  "达人ID": "influencer_id"
+  "直播间ID": "live_room_id"
+  "直播标题": "live_title"
+
+# 数据类型定义
+data_types:
+  price: "Float64"
+  current_price: "Float64"
+  original_price: "Float64"
+  sales_volume: "Int64"
+  inventory: "Int64"
+  product_id: "Utf8"
+  shop_id: "Utf8"
+  rating: "Float64"
+  comment_count: "Int64"
+  positive_rate: "Float64"
+  listing_date: "Date"
+  update_date: "Datetime"
+  crawl_date: "Datetime"
+  stats_date: "Date"
+
+# 必填字段
+required_fields:
+  - "product_title"
+  - "price"
+  - "sales_volume"
+  - "product_id"

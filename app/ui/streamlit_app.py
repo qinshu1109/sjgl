@@ -329,80 +329,18 @@ def main():
         st.markdown("""
         1. **上传文件**: 支持CSV/Excel格式
         2. **自动处理**: 系统智能识别和清洗
-        3. **数据筛选**: 可根据范围值筛选
+        3. **批量处理**: 支持多文件同时处理
         4. **下载结果**: CSV格式(兼容Excel)
         
         ---
         """)
-        
-        # 数据筛选功能
-        if 'processed_files' in st.session_state and st.session_state.processed_files:
-            st.markdown("### 🔍 数据筛选")
-            
-            # 选择要筛选的文件
-            if len(st.session_state.processed_files) > 1:
-                selected_file_idx = st.selectbox(
-                    "选择要筛选的文件",
-                    range(len(st.session_state.processed_files)),
-                    format_func=lambda x: st.session_state.processed_files[x]['name']
-                )
-            else:
-                selected_file_idx = 0
-            
-            selected_file = st.session_state.processed_files[selected_file_idx]
-            df = selected_file['cleaned_df']
-            
-            # 获取所有可筛选的列（_filter列）
-            filter_columns = [col.replace('_filter', '') for col in df.columns if col.endswith('_filter')]
-            
-            if filter_columns:
-                st.markdown("#### 筛选条件")
-                filters = {}
-                
-                for col in filter_columns:
-                    filter_col = f"{col}_filter"
-                    # 获取数值范围
-                    min_val = float(df[filter_col].min())
-                    max_val = float(df[filter_col].max())
-                    
-                    if min_val < max_val:
-                        # 使用滑块选择范围
-                        selected_range = st.slider(
-                            f"{col}",
-                            min_val,
-                            max_val,
-                            (min_val, max_val),
-                            key=f"filter_{col}_{selected_file_idx}"
-                        )
-                        filters[filter_col] = selected_range
-                
-                # 应用筛选按钮
-                if st.button("应用筛选", key="apply_filter"):
-                    # 应用筛选条件
-                    filtered_df = df
-                    for filter_col, (min_range, max_range) in filters.items():
-                        filtered_df = filtered_df.filter(
-                            (pl.col(filter_col) >= min_range) & 
-                            (pl.col(filter_col) <= max_range)
-                        )
-                    
-                    # 保存筛选结果
-                    st.session_state.filtered_results = {
-                        'df': filtered_df,
-                        'original_count': len(df),
-                        'filtered_count': len(filtered_df),
-                        'file_name': selected_file['name']
-                    }
-                    st.success(f"筛选完成！共筛选出 {len(filtered_df)}/{len(df)} 条数据")
-        
-        st.markdown("---")
         
         st.markdown("### 🔧 技术特性")
         st.markdown("""
         - 🚀 **智能引擎**: Polars高性能处理
         - 📁 **批量处理**: 多文件同时处理
         - 🧠 **智能解析**: 多表自动识别
-        - 🔍 **范围筛选**: 根据下限值筛选
+        - 🔧 **模糊处理**: 智能数值范围转换
         - 📊 **原始格式**: 保留原始数据展示
         """)
     
@@ -456,13 +394,23 @@ def main():
                         original_df = None
                         if index == 0:  # 只读取第一个文件的原始数据
                             try:
-                                if up_file.name.endswith('.csv'):
-                                    original_df = pl.read_csv(tmp_file_path, encoding='utf-8-sig', separator='\t')
+                                # 读取真正的原始数据
+                                from app.core.etl_douyin import parse_messy_file
+                                original_tables = parse_messy_file(tmp_file_path)
+                                if original_tables:
+                                    # 获取第一个表格的原始数据
+                                    first_table = list(original_tables.values())[0]
+                                    original_df = first_table.head(5)
                                 else:
-                                    original_df = pl.read_excel(tmp_file_path)
-                                original_df = original_df.head(5)
+                                    # 降级处理：直接读取文件
+                                    if up_file.name.endswith('.csv'):
+                                        original_df = pl.read_csv(tmp_file_path, encoding='utf-8-sig')
+                                    else:
+                                        original_df = pl.read_excel(tmp_file_path)
+                                    original_df = original_df.head(5)
                             except:
-                                original_df = cleaned_df.head(5)
+                                # 最后降级：使用清洗后数据但移除_filter列
+                                original_df = cleaned_df.drop([col for col in cleaned_df.columns if col.endswith('_filter')]).head(5)
                         
                         # 保存处理结果
                         processed_files.append({
@@ -503,11 +451,12 @@ def main():
                     col1, col2 = st.columns(2)
                     with col1:
                         st.write("#### 📋 原始数据 (前5行)")
+                        # 显示真正的原始数据
                         st.dataframe(processed_files[0]['original_df'].to_pandas(), use_container_width=True)
                     
                     with col2:
                         st.write("#### ✨ 清洗后数据 (前5行)")
-                        # 移除_filter列显示
+                        # 移除_filter列显示清洗后的数据
                         display_df = processed_files[0]['cleaned_df'].drop(
                             [col for col in processed_files[0]['cleaned_df'].columns if col.endswith('_filter')]
                         )
@@ -574,40 +523,6 @@ def main():
             else:
                 st.error("❌ 所有文件处理失败，请检查文件格式是否正确。")
     
-    # 显示筛选结果
-    if 'filtered_results' in st.session_state:
-        st.divider()
-        st.subheader("🎯 筛选结果")
-        
-        filtered_info = st.session_state.filtered_results
-        col1, col2, col3 = st.columns(3)
-        
-        with col1:
-            st.metric("文件", filtered_info['file_name'])
-        with col2:
-            st.metric("原始数据", f"{filtered_info['original_count']:,} 行")
-        with col3:
-            st.metric("筛选后", f"{filtered_info['filtered_count']:,} 行")
-        
-        # 显示筛选后的数据（移除_filter列）
-        display_df = filtered_info['df'].drop(
-            [col for col in filtered_info['df'].columns if col.endswith('_filter')]
-        )
-        
-        st.write("筛选后数据预览：")
-        st.dataframe(display_df.to_pandas(), use_container_width=True)
-        
-        # 下载筛选结果
-        csv_string = display_df.write_csv()
-        csv_bytes = csv_string.encode('utf-8-sig')
-        
-        st.download_button(
-            label="⬇️ 下载筛选结果",
-            data=csv_bytes,
-            file_name=f"filtered_{filtered_info['file_name']}",
-            mime="text/csv",
-            use_container_width=True
-        )
 
 
 def process_single_file(uploaded_file) -> pl.DataFrame:
